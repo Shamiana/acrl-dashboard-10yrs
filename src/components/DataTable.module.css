@@ -1,0 +1,130 @@
+.wrapper {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--cream);
+}
+
+.info {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.exportGroup {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.exportBtn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 2px;
+  transition: opacity 0.15s;
+}
+
+.exportBtn:hover { opacity: 0.85; }
+
+.tableWrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.th {
+  background: var(--cream);
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-light);
+  border-bottom: 2px solid var(--rule);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.th:hover { color: var(--accent); }
+.sorted { color: var(--accent); }
+
+.sortIcon {
+  font-size: 0.6rem;
+  opacity: 0.6;
+}
+
+.td {
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowEven { background: var(--paper); }
+.rowOdd { background: var(--cream); }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--rule);
+  background: var(--cream);
+}
+
+.pageBtn {
+  padding: 0.3rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  font-size: 0.8rem;
+  color: var(--ink-light);
+  transition: all 0.15s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pageBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  padding: 0 0.5rem;
+}
+
+.empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ink-muted);
+  font-style: italic;
+}

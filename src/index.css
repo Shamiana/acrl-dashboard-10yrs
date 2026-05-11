@@ -1,0 +1,57 @@
+:root {
+  --cream: #f7f5f0;
+  --paper: #fdfcf9;
+  --ink: #1a1814;
+  --ink-light: #4a4540;
+  --ink-muted: #8a8480;
+  --rule: #d8d4cc;
+  --accent: #2c4a6e;
+  --accent-light: #4a7aa8;
+  --accent-muted: #c8d8e8;
+  --warn: #8b4513;
+  --success: #2d5a27;
+  --font-serif: 'Libre Baskerville', Georgia, serif;
+  --font-sans: 'Source Sans 3', 'Source Sans Pro', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+select, input[type="range"] {
+  font-family: var(--font-sans);
+}
+
+/* Print styles */
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+}

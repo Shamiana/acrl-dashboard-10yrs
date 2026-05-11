@@ -1,0 +1,599 @@
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  LineChart, Line, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts';
+import {
+  parseExcelFile, deriveFilters, applyFilters,
+  getQuestionIndex, detectResponseType, parseNumeric, shortName,
+} from './utils/dataUtils.js';
+import FilterPanel from './components/FilterPanel.jsx';
+import ChartCard from './components/ChartCard.jsx';
+import DataTable from './components/DataTable.jsx';
+import styles from './App.module.css';
+
+const COLORS = [
+  '#2c4a6e','#8b4513','#2d5a27','#6b4c8b','#4a7a8a','#8a6b2c',
+  '#c05a2e','#3a6b5a','#5a3a6b','#6b7a2c','#2e5a8a','#8a2e5a',
+];
+const color = i => COLORS[i % COLORS.length];
+
+export default function App() {
+  const [data, setData] = useState([]);
+  const [options, setOptions] = useState({ years: [], institutions: [] });
+  const [filters, setFilters] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [uploading, setUploading] = useState(false);
+
+  // Explore tab
+  const [exploreSection, setExploreSection] = useState('');
+  const [exploreGroup, setExploreGroup] = useState('');
+  const [exploreQuestion, setExploreQuestion] = useState('');
+
+  // Trends tab
+  const [trendsQuestion, setTrendsQuestion] = useState('');
+
+  const filteredData = useMemo(
+    () => (filters ? applyFilters(data, filters) : data),
+    [data, filters]
+  );
+
+  const questionIndex = useMemo(() => getQuestionIndex(filteredData), [filteredData]);
+
+  // ── Filter panel stats ───────────────────────────────────────────────────
+  const filterStats = useMemo(() => {
+    const insts = new Set(filteredData.map(r => r.institution));
+    const yrs = new Set(filteredData.map(r => r.year));
+    return { institutions: insts.size, years: yrs.size };
+  }, [filteredData]);
+
+  // ── Explore cascades ────────────────────────────────────────────────────
+  const exploreSections = useMemo(
+    () => [...new Set(questionIndex.map(q => q.section))].sort(),
+    [questionIndex]
+  );
+  const exploreGroups = useMemo(() => {
+    if (!exploreSection) return [];
+    return [...new Set(
+      questionIndex.filter(q => q.section === exploreSection).map(q => q.questionGroup)
+    )].sort();
+  }, [questionIndex, exploreSection]);
+
+  const exploreQuestions = useMemo(() => {
+    if (!exploreGroup) return [];
+    return questionIndex.filter(
+      q => q.section === exploreSection && q.questionGroup === exploreGroup
+    );
+  }, [questionIndex, exploreSection, exploreGroup]);
+
+  const selectedRows = useMemo(
+    () => filteredData.filter(r => r.question === exploreQuestion),
+    [filteredData, exploreQuestion]
+  );
+
+  const responseType = useMemo(() => detectResponseType(selectedRows), [selectedRows]);
+
+  // ── Trends numeric questions (≥2 years) ─────────────────────────────────
+  const numericQuestions = useMemo(() => {
+    return questionIndex.filter(q => {
+      if (q.years.length < 2) return false;
+      const rows = filteredData.filter(r => r.question === q.question);
+      return detectResponseType(rows) === 'numeric';
+    });
+  }, [questionIndex, filteredData]);
+
+  const trendsRows = useMemo(
+    () => filteredData.filter(r => r.question === trendsQuestion),
+    [filteredData, trendsQuestion]
+  );
+
+  // ── Overview coverage grid ───────────────────────────────────────────────
+  const coverageGrid = useMemo(() => {
+    const years = options.years;
+    const instSet = new Set(filteredData.map(r => r.institution));
+    const insts = [...instSet].sort();
+    const grid = {};
+    filteredData.forEach(r => {
+      if (!grid[r.institution]) grid[r.institution] = new Set();
+      grid[r.institution].add(r.year);
+    });
+    return { years, insts, grid };
+  }, [filteredData, options.years]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────
+  const handleFilterChange = useCallback((key, value) => {
+    if (key === 'reset') {
+      setFilters(f => ({
+        yearMin: options.years[0],
+        yearMax: options.years[options.years.length - 1],
+        institutions: [],
+      }));
+    } else {
+      setFilters(prev => ({ ...prev, [key]: value }));
+    }
+  }, [options]);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const rows = await parseExcelFile(file);
+      const opts = deriveFilters(rows);
+      setData(rows);
+      setOptions(opts);
+      setFilters({
+        yearMin: opts.years[0],
+        yearMax: opts.years[opts.years.length - 1],
+        institutions: [],
+      });
+      setExploreSection('');
+      setExploreGroup('');
+      setExploreQuestion('');
+      setTrendsQuestion('');
+    } catch {
+      alert('Could not read file. Please upload the master Excel file (Combination sheet required).');
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  // ── Chart helpers ────────────────────────────────────────────────────────
+
+  function NumericChart({ rows }) {
+    const years = [...new Set(rows.map(r => r.year))].sort();
+    const insts = [...new Set(rows.map(r => r.institution))].sort();
+
+    if (years.length >= 2) {
+      // Line chart: year on x, one line per institution
+      const lineData = years.map(yr => {
+        const point = { year: String(yr) };
+        insts.forEach(inst => {
+          const row = rows.find(r => r.institution === inst && r.year === yr);
+          point[shortName(inst)] = row ? parseNumeric(row.response) : null;
+        });
+        return point;
+      });
+      return (
+        <ChartCard title={exploreQuestion} subtitle="Numeric trend by institution" chartId="chart-explore-trend">
+          <ResponsiveContainer width="100%" height={Math.max(260, insts.length * 18)}>
+            <LineChart data={lineData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
+              <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v?.toLocaleString()} />
+              <Tooltip formatter={v => v?.toLocaleString()} contentStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {insts.map((inst, i) => (
+                <Line
+                  key={inst}
+                  type="monotone"
+                  dataKey={shortName(inst)}
+                  stroke={color(i)}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      );
+    }
+
+    // Single year: horizontal bar chart
+    const yr = years[0];
+    const barData = insts
+      .map(inst => {
+        const row = rows.find(r => r.institution === inst && r.year === yr);
+        return { inst: shortName(inst), value: row ? parseNumeric(row.response) : null };
+      })
+      .filter(d => d.value !== null)
+      .sort((a, b) => b.value - a.value);
+
+    return (
+      <ChartCard title={exploreQuestion} subtitle={`${yr} — all institutions`} chartId="chart-explore-bar">
+        <ResponsiveContainer width="100%" height={Math.max(260, barData.length * 26)}>
+          <BarChart data={barData} layout="vertical" margin={{ top: 5, right: 30, left: 90, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
+            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => v?.toLocaleString()} />
+            <YAxis type="category" dataKey="inst" tick={{ fontSize: 11 }} width={88} />
+            <Tooltip formatter={v => v?.toLocaleString()} contentStyle={{ fontSize: 12 }} />
+            <Bar dataKey="value" name="Value" radius={[0, 2, 2, 0]}>
+              {barData.map((_, i) => <Cell key={i} fill={color(i)} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+    );
+  }
+
+  function CategoricalChart({ rows }) {
+    const years = [...new Set(rows.map(r => r.year))].sort();
+    const allValues = [...new Set(rows.map(r => String(r.response || '').trim()).filter(Boolean))].sort();
+    const insts = [...new Set(rows.map(r => r.institution))].sort();
+
+    // For each year: count of each response value across institutions
+    const chartData = years.map(yr => {
+      const point = { year: String(yr) };
+      const yearRows = rows.filter(r => r.year === yr);
+      allValues.forEach(val => {
+        point[val] = yearRows.filter(r => String(r.response || '').trim() === val).length;
+      });
+      return point;
+    });
+
+    return (
+      <ChartCard title={exploreQuestion} subtitle="Response counts by year" chartId="chart-explore-cat">
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
+            <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {allValues.map((val, i) => (
+              <Bar key={val} dataKey={val} stackId="a" fill={color(i)} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+    );
+  }
+
+  function MultiselectChart({ rows }) {
+    const freq = {};
+    rows.forEach(r => {
+      if (!r.response) return;
+      String(r.response).split('|').forEach(opt => {
+        const o = opt.trim();
+        if (o) freq[o] = (freq[o] || 0) + 1;
+      });
+    });
+    const chartData = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([option, count]) => ({ option: option.length > 50 ? option.slice(0, 50) + '…' : option, count }));
+
+    return (
+      <ChartCard title={exploreQuestion} subtitle="Option frequency (top 15)" chartId="chart-explore-multi">
+        <ResponsiveContainer width="100%" height={Math.max(260, chartData.length * 28)}>
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 240, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
+            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis type="category" dataKey="option" tick={{ fontSize: 10 }} width={238} />
+            <Tooltip contentStyle={{ fontSize: 12 }} />
+            <Bar dataKey="count" name="Selections" fill="#2c4a6e" radius={[0, 2, 2, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+    );
+  }
+
+  function FreetextSamples({ rows }) {
+    return (
+      <div className={styles.textSample}>
+        <h3 className={styles.sampleTitle}>{exploreQuestion}</h3>
+        <div className={styles.sampleList}>
+          {rows.filter(r => r.response).slice(0, 20).map((r, i) => (
+            <div key={i} className={styles.sampleItem}>
+              <span className={styles.sampleMeta}>{r.year} · {shortName(r.institution)}</span>
+              <p className={styles.sampleText}>{String(r.response)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Empty / upload state ─────────────────────────────────────────────────
+  if (!data.length) {
+    return (
+      <div className={styles.app}>
+        <header className={styles.header}>
+          <div className={styles.headerInner}>
+            <div>
+              <p className={styles.kicker}>CUNY University Libraries</p>
+              <h1 className={styles.title}>ACRL Benchmark Dashboard</h1>
+              <p className={styles.subtitle}>Academic library survey data · All CUNY campuses</p>
+            </div>
+          </div>
+        </header>
+        <div className={styles.uploadPrompt}>
+          <div className={styles.uploadCard}>
+            <p className={styles.uploadIcon}>↑</p>
+            <h2 className={styles.uploadHeading}>Upload the master Excel file</h2>
+            <p className={styles.uploadHint}>
+              Select <strong>2017-2025_ACRL_master.xlsx</strong> (or any year's master file).<br />
+              The dashboard reads the <em>Combination</em> sheet automatically.
+            </p>
+            <label className={styles.uploadBtn}>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className={styles.fileInput}
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+              {uploading ? 'Loading…' : 'Choose File'}
+            </label>
+          </div>
+        </div>
+        <footer className={styles.footer}>
+          <p>ACRL Benchmark Dashboard · CUNY University Libraries</p>
+        </footer>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'explore',  label: 'Explore' },
+    { id: 'trends',   label: 'Trends' },
+    { id: 'data',     label: 'Raw Data' },
+  ];
+
+  return (
+    <div className={styles.app}>
+      {/* Header */}
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <div>
+            <p className={styles.kicker}>CUNY University Libraries</p>
+            <h1 className={styles.title}>ACRL Benchmark Dashboard</h1>
+            <p className={styles.subtitle}>
+              {options.years[0]}–{options.years[options.years.length - 1]} ·{' '}
+              {options.institutions.length} institutions · {questionIndex.length} questions
+            </p>
+          </div>
+          <label className={styles.uploadLabel + ' no-print'}>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              className={styles.fileInput}
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+            {uploading ? 'Loading…' : '↑ Load New File'}
+          </label>
+        </div>
+      </header>
+
+      <div className={styles.layout}>
+        <FilterPanel
+          filters={filters}
+          options={options}
+          onChange={handleFilterChange}
+          stats={filterStats}
+        />
+
+        <main className={styles.main}>
+          <nav className={styles.tabs + ' no-print'}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                className={styles.tab + (activeTab === t.id ? ' ' + styles.tabActive : '')}
+                onClick={() => setActiveTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* ── OVERVIEW ── */}
+          {activeTab === 'overview' && (
+            <div className={styles.section}>
+              <div className={styles.statsRow}>
+                {[
+                  { label: 'Institutions', value: filterStats.institutions },
+                  { label: 'Years', value: filterStats.years },
+                  { label: 'Questions', value: questionIndex.length },
+                  { label: 'Data Points', value: filteredData.length.toLocaleString() },
+                ].map(s => (
+                  <div key={s.label} className={styles.statCard}>
+                    <div className={styles.statValue}>{s.value}</div>
+                    <div className={styles.statLabel}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={styles.card}>
+                <h3 className={styles.cardTitle}>Data Coverage by Institution and Year</h3>
+                <div className={styles.tableWrap}>
+                  <table className={styles.coverageTable}>
+                    <thead>
+                      <tr>
+                        <th className={styles.covTh}>Institution</th>
+                        {coverageGrid.years.map(yr => (
+                          <th key={yr} className={styles.covTh}>{yr}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coverageGrid.insts.map(inst => (
+                        <tr key={inst}>
+                          <td className={styles.covInstCell}>{shortName(inst)}</td>
+                          {coverageGrid.years.map(yr => (
+                            <td key={yr} className={styles.covCell}>
+                              {coverageGrid.grid[inst]?.has(yr) ? (
+                                <span className={styles.covCheck}>✓</span>
+                              ) : (
+                                <span className={styles.covMiss}>—</span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── EXPLORE ── */}
+          {activeTab === 'explore' && (
+            <div className={styles.section}>
+              <div className={styles.card}>
+                <div className={styles.explorePickers}>
+                  <div className={styles.pickerGroup}>
+                    <label className={styles.pickerLabel}>Section</label>
+                    <select
+                      className={styles.pickerSelect}
+                      value={exploreSection}
+                      onChange={e => {
+                        setExploreSection(e.target.value);
+                        setExploreGroup('');
+                        setExploreQuestion('');
+                      }}
+                    >
+                      <option value="">— Choose section —</option>
+                      {exploreSections.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.pickerGroup}>
+                    <label className={styles.pickerLabel}>Question Group</label>
+                    <select
+                      className={styles.pickerSelect}
+                      value={exploreGroup}
+                      disabled={!exploreSection}
+                      onChange={e => {
+                        setExploreGroup(e.target.value);
+                        setExploreQuestion('');
+                      }}
+                    >
+                      <option value="">— Choose group —</option>
+                      {exploreGroups.map(g => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.pickerGroup}>
+                    <label className={styles.pickerLabel}>Question</label>
+                    <select
+                      className={styles.pickerSelect}
+                      value={exploreQuestion}
+                      disabled={!exploreGroup}
+                      onChange={e => setExploreQuestion(e.target.value)}
+                    >
+                      <option value="">— Choose question —</option>
+                      {exploreQuestions.map(q => (
+                        <option key={q.question} value={q.question}>{q.question}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {!exploreQuestion && (
+                <div className={styles.emptyHint}>
+                  Select a section, group, and question above to view its chart.
+                </div>
+              )}
+
+              {exploreQuestion && responseType === 'numeric' && <NumericChart rows={selectedRows} />}
+              {exploreQuestion && responseType === 'categorical' && <CategoricalChart rows={selectedRows} />}
+              {exploreQuestion && responseType === 'multiselect' && <MultiselectChart rows={selectedRows} />}
+              {exploreQuestion && responseType === 'freetext' && <FreetextSamples rows={selectedRows} />}
+              {exploreQuestion && responseType === 'empty' && (
+                <div className={styles.emptyHint}>No responses for this question in the current filter.</div>
+              )}
+            </div>
+          )}
+
+          {/* ── TRENDS ── */}
+          {activeTab === 'trends' && (
+            <div className={styles.section}>
+              <div className={styles.card}>
+                <div className={styles.explorePickers}>
+                  <div className={styles.pickerGroup} style={{ flex: 2 }}>
+                    <label className={styles.pickerLabel}>
+                      Numeric question with data in multiple years
+                    </label>
+                    <select
+                      className={styles.pickerSelect}
+                      value={trendsQuestion}
+                      onChange={e => setTrendsQuestion(e.target.value)}
+                    >
+                      <option value="">— Choose question —</option>
+                      {numericQuestions.map(q => (
+                        <option key={q.question} value={q.question}>
+                          [{q.section}] {q.question}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {numericQuestions.length === 0 && (
+                  <p className={styles.emptyHint} style={{ marginTop: '0.5rem' }}>
+                    No numeric questions with multiple years found in the current filter.
+                    Expand the year range or select more institutions.
+                  </p>
+                )}
+              </div>
+
+              {trendsQuestion && (() => {
+                const insts = [...new Set(trendsRows.map(r => r.institution))].sort();
+                const years = [...new Set(trendsRows.map(r => r.year))].sort();
+                const lineData = years.map(yr => {
+                  const point = { year: String(yr) };
+                  insts.forEach(inst => {
+                    const row = trendsRows.find(r => r.institution === inst && r.year === yr);
+                    point[shortName(inst)] = row ? parseNumeric(row.response) : null;
+                  });
+                  return point;
+                });
+                return (
+                  <ChartCard
+                    title={trendsQuestion}
+                    subtitle="Year-over-year by institution"
+                    chartId="chart-trends-main"
+                  >
+                    <ResponsiveContainer width="100%" height={Math.max(300, insts.length * 16)}>
+                      <LineChart data={lineData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
+                        <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v?.toLocaleString()} />
+                        <Tooltip formatter={v => v?.toLocaleString()} contentStyle={{ fontSize: 12 }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        {insts.map((inst, i) => (
+                          <Line
+                            key={inst}
+                            type="monotone"
+                            dataKey={shortName(inst)}
+                            stroke={color(i)}
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            connectNulls={false}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                );
+              })()}
+
+              {!trendsQuestion && numericQuestions.length > 0 && (
+                <div className={styles.emptyHint}>Select a question above to see the trend.</div>
+              )}
+            </div>
+          )}
+
+          {/* ── RAW DATA ── */}
+          {activeTab === 'data' && (
+            <div className={styles.section}>
+              <DataTable data={filteredData} />
+            </div>
+          )}
+        </main>
+      </div>
+
+      <footer className={styles.footer}>
+        <p>ACRL Benchmark Dashboard · CUNY University Libraries</p>
+      </footer>
+    </div>
+  );
+}
