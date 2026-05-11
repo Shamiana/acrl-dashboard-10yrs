@@ -4,23 +4,30 @@ import styles from './FilterPanel.module.css';
 
 export default function FilterPanel({ filters, options, onChange, stats }) {
   const { years, institutions } = options;
-  const minYear = years[0];
-  const maxYear = years[years.length - 1];
 
-  // Empty array means all selected
-  const allSelected = filters.institutions.length === 0;
+  const allYearsSelected = filters.years.length === 0;
+  const allInstsSelected = filters.institutions.length === 0;
+
+  function toggleYear(yr) {
+    if (allYearsSelected) {
+      onChange('years', years.filter(y => y !== yr));
+    } else if (filters.years.includes(yr)) {
+      const next = filters.years.filter(y => y !== yr);
+      onChange('years', next.length === 0 ? [] : next);
+    } else {
+      const next = [...filters.years, yr];
+      onChange('years', next.length === years.length ? [] : next);
+    }
+  }
 
   function toggleInstitution(inst) {
-    if (allSelected) {
-      // Currently showing all — deselect this one (show all except it)
+    if (allInstsSelected) {
       onChange('institutions', institutions.filter(i => i !== inst));
     } else if (filters.institutions.includes(inst)) {
       const next = filters.institutions.filter(i => i !== inst);
-      // If removing the last one, go back to "all"
       onChange('institutions', next.length === 0 ? [] : next);
     } else {
       const next = [...filters.institutions, inst];
-      // If all are now checked, simplify back to []
       onChange('institutions', next.length === institutions.length ? [] : next);
     }
   }
@@ -34,41 +41,31 @@ export default function FilterPanel({ filters, options, onChange, stats }) {
         </span>
       </div>
 
-      {/* Year Range */}
+      {/* Years */}
       <div className={styles.filterGroup}>
-        <label className={styles.label}>Year Range</label>
-        <div className={styles.yearDisplay}>
-          <span>{filters.yearMin}</span>
-          <span>–</span>
-          <span>{filters.yearMax}</span>
+        <div className={styles.labelRow}>
+          <label className={styles.label}>Years</label>
+          <div className={styles.checkControls}>
+            <button
+              className={styles.microBtn + (allYearsSelected ? ' ' + styles.microBtnActive : '')}
+              onClick={() => onChange('years', [])}
+            >All</button>
+          </div>
         </div>
-        <div className={styles.rangeRow}>
-          <span className={styles.rangeLabel}>{minYear}</span>
-          <input
-            type="range"
-            min={minYear}
-            max={maxYear}
-            value={filters.yearMin}
-            className={styles.range}
-            onChange={e => {
-              const val = parseInt(e.target.value);
-              if (val <= filters.yearMax) onChange('yearMin', val);
-            }}
-          />
-        </div>
-        <div className={styles.rangeRow}>
-          <span className={styles.rangeLabel}>{maxYear}</span>
-          <input
-            type="range"
-            min={minYear}
-            max={maxYear}
-            value={filters.yearMax}
-            className={styles.range}
-            onChange={e => {
-              const val = parseInt(e.target.value);
-              if (val >= filters.yearMin) onChange('yearMax', val);
-            }}
-          />
+        <div className={styles.checkList}>
+          {years.map(yr => {
+            const checked = allYearsSelected || filters.years.includes(yr);
+            return (
+              <label key={yr} className={styles.checkItem}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleYear(yr)}
+                />
+                <span className={styles.checkLabel}>{yr}</span>
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -78,14 +75,14 @@ export default function FilterPanel({ filters, options, onChange, stats }) {
           <label className={styles.label}>Institutions</label>
           <div className={styles.checkControls}>
             <button
-              className={styles.microBtn + (allSelected ? ' ' + styles.microBtnActive : '')}
+              className={styles.microBtn + (allInstsSelected ? ' ' + styles.microBtnActive : '')}
               onClick={() => onChange('institutions', [])}
             >All</button>
           </div>
         </div>
         <div className={styles.checkList}>
           {institutions.map(inst => {
-            const checked = allSelected || filters.institutions.includes(inst);
+            const checked = allInstsSelected || filters.institutions.includes(inst);
             return (
               <label key={inst} className={styles.checkItem}>
                 <input

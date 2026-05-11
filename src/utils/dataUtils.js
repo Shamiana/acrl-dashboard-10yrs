@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 
-// Contact/metadata fields present in older ACRL exports — not library metrics, exclude from dashboard
+// Contact/metadata fields and non-metric questions — exclude from dashboard entirely
 const QUESTION_BLOCKLIST = new Set([
   'CARNEGIE CLASSIFICATION',
   'CARNEGIE CLASSIFICATION DETAILED OPTIONAL QUESTION',
@@ -26,6 +26,7 @@ const QUESTION_BLOCKLIST = new Set([
   'YOUR PHONE NUMBER',
   'YOUR TITLE',
   'ZIP/POSTAL CODE',
+  '27. ARE EXPENSES REPORTED IN CANADIAN DOLLARS?',
 ]);
 
 // Questions that changed wording across years but measure the same thing — map old wording → canonical
@@ -131,10 +132,113 @@ export function deriveFilters(data) {
   return { years, institutions };
 }
 
-// institutions: [] means all selected
+// Core sections always shown in question picker
+export const CORE_SECTIONS = [
+  'EXPENSES (EXCLUDE STAFF)',
+  'LIBRARY COLLECTIONS',
+  'LIBRARY SERVICES',
+  'STAFFING TYPES, FTES AND EXPENSES',
+];
+
+// Questions reassigned to specific optional subsections regardless of their original section
+const OPTIONAL_OVERRIDES = {
+  '67A V-01 EMAIL REFERENCE': 'Virtual Reference Breakdowns',
+  '67B V-02 CHAT REFERENCE, COMMERCIAL SERVICES': 'Virtual Reference Breakdowns',
+  '67C V-03 CHAT REFERENCE, INSTANT MESSAGING APPLICATIONS': 'Virtual Reference Breakdowns',
+  '67D V-04 SHORT MESSAGE SERVICE (SMS) OR TEXT MESSAGING': 'Virtual Reference Breakdowns',
+  '67E V-05 ONLINE CONFERENCING': 'Virtual Reference Breakdowns',
+  '22# ONE-TIME ELECTRONIC RESOURCE PURCHASES': 'One-Time Electronic Purchases',
+  '9# OTHER OPERATING EXPENDITURES': 'One-Time Electronic Purchases',
+  'TOTAL LIBRARY MATERIALS EXPENDITURES RETIRED': 'One-Time Electronic Purchases',
+  '77. NUMBER OF WEEKS THE MAIN LIBRARY WAS CLOSED DUE TO COVID-19': 'COVID-Related Questions',
+  '78. NUMBER OF WEEKS THE MAIN LIBRARY HAD LIMITED OCCUPANCY DUE TO COVID-19': 'COVID-Related Questions',
+  '61B. E-BOOK USAGE (COUNTER 4 BR1 & MR1 OR OTHER IF NEEDED)': 'COUNTER 4',
+  '62B. E-BOOK USAGE (COUNTER 4 BR2 & MR2 OR OTHER IF NEEDED)': 'COUNTER 4',
+};
+
+const HIDDEN_SECTIONS = new Set(['FINAL COMMENTS']);
+
+const OPTIONAL_SECTION_ORDER = [
+  'Notes',
+  'COVID-Related Questions',
+  'COUNTER 4',
+  'Virtual Reference Breakdowns',
+  'One-Time Electronic Purchases',
+  'Annual Trends',
+  'Selected IPEDS Metrics',
+  'Library Characteristics',
+  'Local Characteristics',
+];
+
+// Returns questions grouped into core and optional subsections for the picker UI
+export function getCategorizedQuestions(questionIndex) {
+  const coreMap = new Map(CORE_SECTIONS.map(s => [s, []]));
+  const optionalMap = new Map();
+
+  questionIndex.forEach(q => {
+    if (HIDDEN_SECTIONS.has(q.section)) return;
+
+    if (OPTIONAL_OVERRIDES[q.question]) {
+      const label = OPTIONAL_OVERRIDES[q.question];
+      if (!optionalMap.has(label)) optionalMap.set(label, []);
+      optionalMap.get(label).push(q);
+      return;
+    }
+
+    if (q.question.startsWith('NOTES -')) {
+      if (!optionalMap.has('Notes')) optionalMap.set('Notes', []);
+      optionalMap.get('Notes').push(q);
+      return;
+    }
+
+    if (coreMap.has(q.section)) {
+      coreMap.get(q.section).push(q);
+      return;
+    }
+
+    let label;
+    if (/^\d{4} TRENDS:/.test(q.section) || q.section === 'TRENDS QUESTIONS' || q.section === 'SPECIAL SECTION: ACCESSIBILITY') {
+      label = 'Annual Trends';
+    } else if (q.section === 'SELECTED IPEDS METRICS') {
+      label = 'Selected IPEDS Metrics';
+    } else if (q.section === 'LIBRARY CHARACTERISTICS') {
+      label = 'Library Characteristics';
+    } else if (q.section === 'LOCAL CHARACTERISTICS') {
+      label = 'Local Characteristics';
+    } else {
+      label = q.section || 'Other';
+    }
+
+    if (!optionalMap.has(label)) optionalMap.set(label, []);
+    optionalMap.get(label).push(q);
+  });
+
+  const groups = [];
+
+  CORE_SECTIONS.forEach(section => {
+    const qs = coreMap.get(section);
+    if (qs && qs.length > 0) groups.push({ type: 'core', label: section, questions: qs });
+  });
+
+  OPTIONAL_SECTION_ORDER.forEach(label => {
+    const qs = optionalMap.get(label);
+    if (qs && qs.length > 0) {
+      groups.push({ type: 'optional', label, questions: qs });
+      optionalMap.delete(label);
+    }
+  });
+
+  optionalMap.forEach((qs, label) => {
+    if (qs.length > 0) groups.push({ type: 'optional', label, questions: qs });
+  });
+
+  return groups;
+}
+
+// years: [] means all selected; institutions: [] means all selected
 export function applyFilters(data, filters) {
   return data.filter(row => {
-    if (row.year < filters.yearMin || row.year > filters.yearMax) return false;
+    if (filters.years.length > 0 && !filters.years.includes(row.year)) return false;
     if (filters.institutions.length > 0 && !filters.institutions.includes(row.institution)) return false;
     return true;
   });

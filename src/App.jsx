@@ -5,7 +5,8 @@ import {
 } from 'recharts';
 import {
   parseExcelFile, deriveFilters, applyFilters,
-  getQuestionIndex, detectResponseType, parseNumeric, shortName,
+  getQuestionIndex, getCategorizedQuestions,
+  detectResponseType, parseNumeric, shortName,
 } from './utils/dataUtils.js';
 import FilterPanel from './components/FilterPanel.jsx';
 import ChartCard from './components/ChartCard.jsx';
@@ -26,9 +27,9 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
 
   // Explore tab
-  const [exploreSection, setExploreSection] = useState('');
-  const [exploreGroup, setExploreGroup] = useState('');
   const [exploreQuestion, setExploreQuestion] = useState('');
+  const [questionSearch, setQuestionSearch] = useState('');
+  const [chartView, setChartView] = useState('combined');
 
   // Trends tab
   const [trendsQuestion, setTrendsQuestion] = useState('');
@@ -39,32 +40,13 @@ export default function App() {
   );
 
   const questionIndex = useMemo(() => getQuestionIndex(filteredData), [filteredData]);
+  const categorizedQuestions = useMemo(() => getCategorizedQuestions(questionIndex), [questionIndex]);
 
-  // ── Filter panel stats ───────────────────────────────────────────────────
   const filterStats = useMemo(() => {
     const insts = new Set(filteredData.map(r => r.institution));
     const yrs = new Set(filteredData.map(r => r.year));
     return { institutions: insts.size, years: yrs.size };
   }, [filteredData]);
-
-  // ── Explore cascades ────────────────────────────────────────────────────
-  const exploreSections = useMemo(
-    () => [...new Set(questionIndex.map(q => q.section))].sort(),
-    [questionIndex]
-  );
-  const exploreGroups = useMemo(() => {
-    if (!exploreSection) return [];
-    return [...new Set(
-      questionIndex.filter(q => q.section === exploreSection).map(q => q.questionGroup)
-    )].sort();
-  }, [questionIndex, exploreSection]);
-
-  const exploreQuestions = useMemo(() => {
-    if (!exploreGroup) return [];
-    return questionIndex.filter(
-      q => q.section === exploreSection && q.questionGroup === exploreGroup
-    );
-  }, [questionIndex, exploreSection, exploreGroup]);
 
   const selectedRows = useMemo(
     () => filteredData.filter(r => r.question === exploreQuestion),
@@ -73,7 +55,6 @@ export default function App() {
 
   const responseType = useMemo(() => detectResponseType(selectedRows), [selectedRows]);
 
-  // ── Trends numeric questions (≥2 years) ─────────────────────────────────
   const numericQuestions = useMemo(() => {
     return questionIndex.filter(q => {
       if (q.years.length < 2) return false;
@@ -87,7 +68,6 @@ export default function App() {
     [filteredData, trendsQuestion]
   );
 
-  // ── Overview coverage grid ───────────────────────────────────────────────
   const coverageGrid = useMemo(() => {
     const years = options.years;
     const instSet = new Set(filteredData.map(r => r.institution));
@@ -100,18 +80,13 @@ export default function App() {
     return { years, insts, grid };
   }, [filteredData, options.years]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────
   const handleFilterChange = useCallback((key, value) => {
     if (key === 'reset') {
-      setFilters(f => ({
-        yearMin: options.years[0],
-        yearMax: options.years[options.years.length - 1],
-        institutions: [],
-      }));
+      setFilters({ years: [], institutions: [] });
     } else {
       setFilters(prev => ({ ...prev, [key]: value }));
     }
-  }, [options]);
+  }, []);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -122,30 +97,57 @@ export default function App() {
       const opts = deriveFilters(rows);
       setData(rows);
       setOptions(opts);
-      setFilters({
-        yearMin: opts.years[0],
-        yearMax: opts.years[opts.years.length - 1],
-        institutions: [],
-      });
-      setExploreSection('');
-      setExploreGroup('');
+      setFilters({ years: [], institutions: [] });
       setExploreQuestion('');
+      setQuestionSearch('');
       setTrendsQuestion('');
     } catch {
-      alert('Could not read file. Please upload the master Excel file (Combination sheet required).');
+      alert('Could not read file. Please upload the master Excel file.');
     }
     setUploading(false);
     e.target.value = '';
   };
 
-  // ── Chart helpers ────────────────────────────────────────────────────────
+  // ── Chart components ──────────────────────────────────────────────────────
 
   function NumericChart({ rows }) {
     const years = [...new Set(rows.map(r => r.year))].sort();
     const insts = [...new Set(rows.map(r => r.institution))].sort();
 
+    // Side-by-side: one bar chart per year
+    if (chartView === 'split' && years.length > 1) {
+      return (
+        <div className={styles.splitGrid}>
+          {years.map(yr => {
+            const barData = insts
+              .map(inst => {
+                const row = rows.find(r => r.institution === inst && r.year === yr);
+                return { inst: shortName(inst), value: row ? parseNumeric(row.response) : null };
+              })
+              .filter(d => d.value !== null)
+              .sort((a, b) => b.value - a.value);
+            return (
+              <ChartCard key={yr} title={String(yr)} subtitle={exploreQuestion} chartId={`chart-split-${yr}`}>
+                <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 22)}>
+                  <BarChart data={barData} layout="vertical" margin={{ top: 5, right: 20, left: 90, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => v?.toLocaleString()} />
+                    <YAxis type="category" dataKey="inst" tick={{ fontSize: 10 }} width={88} />
+                    <Tooltip formatter={v => v?.toLocaleString()} contentStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="value" name="Value" radius={[0, 2, 2, 0]}>
+                      {barData.map((_, i) => <Cell key={i} fill={color(i)} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Combined multi-year: line chart
     if (years.length >= 2) {
-      // Line chart: year on x, one line per institution
       const lineData = years.map(yr => {
         const point = { year: String(yr) };
         insts.forEach(inst => {
@@ -155,8 +157,8 @@ export default function App() {
         return point;
       });
       return (
-        <ChartCard title={exploreQuestion} subtitle="Numeric trend by institution" chartId="chart-explore-trend">
-          <ResponsiveContainer width="100%" height={Math.max(260, insts.length * 18)}>
+        <ChartCard title={exploreQuestion} subtitle="Year-over-year by institution" chartId="chart-explore-trend">
+          <ResponsiveContainer width="100%" height={Math.max(280, insts.length * 18)}>
             <LineChart data={lineData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#d8d4cc" />
               <XAxis dataKey="year" tick={{ fontSize: 11 }} />
@@ -210,9 +212,7 @@ export default function App() {
   function CategoricalChart({ rows }) {
     const years = [...new Set(rows.map(r => r.year))].sort();
     const allValues = [...new Set(rows.map(r => String(r.response || '').trim()).filter(Boolean))].sort();
-    const insts = [...new Set(rows.map(r => r.institution))].sort();
 
-    // For each year: count of each response value across institutions
     const chartData = years.map(yr => {
       const point = { year: String(yr) };
       const yearRows = rows.filter(r => r.year === yr);
@@ -252,7 +252,10 @@ export default function App() {
     const chartData = Object.entries(freq)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15)
-      .map(([option, count]) => ({ option: option.length > 50 ? option.slice(0, 50) + '…' : option, count }));
+      .map(([option, count]) => ({
+        option: option.length > 50 ? option.slice(0, 50) + '…' : option,
+        count,
+      }));
 
     return (
       <ChartCard title={exploreQuestion} subtitle="Option frequency (top 15)" chartId="chart-explore-multi">
@@ -285,7 +288,7 @@ export default function App() {
     );
   }
 
-  // ── Empty / upload state ─────────────────────────────────────────────────
+  // ── Upload state ──────────────────────────────────────────────────────────
   if (!data.length) {
     return (
       <div className={styles.app}>
@@ -303,8 +306,8 @@ export default function App() {
             <p className={styles.uploadIcon}>↑</p>
             <h2 className={styles.uploadHeading}>Upload the master Excel file</h2>
             <p className={styles.uploadHint}>
-              Select <strong>2017-2025_ACRL_master.xlsx</strong> (or any year's master file).<br />
-              The dashboard reads the <em>Combination</em> sheet automatically.
+              Select <strong>2017-2025_ACRL_master.xlsx</strong>.<br />
+              The file is read locally — nothing is sent to a server.
             </p>
             <label className={styles.uploadBtn}>
               <input
@@ -332,9 +335,10 @@ export default function App() {
     { id: 'data',     label: 'Raw Data' },
   ];
 
+  const selectedYears = filters.years.length > 0 ? filters.years : options.years;
+
   return (
     <div className={styles.app}>
-      {/* Header */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div>
@@ -434,63 +438,64 @@ export default function App() {
           {activeTab === 'explore' && (
             <div className={styles.section}>
               <div className={styles.card}>
-                <div className={styles.explorePickers}>
-                  <div className={styles.pickerGroup}>
-                    <label className={styles.pickerLabel}>Section</label>
-                    <select
-                      className={styles.pickerSelect}
-                      value={exploreSection}
-                      onChange={e => {
-                        setExploreSection(e.target.value);
-                        setExploreGroup('');
-                        setExploreQuestion('');
-                      }}
-                    >
-                      <option value="">— Choose section —</option>
-                      {exploreSections.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className={styles.pickerGroup}>
-                    <label className={styles.pickerLabel}>Question Group</label>
-                    <select
-                      className={styles.pickerSelect}
-                      value={exploreGroup}
-                      disabled={!exploreSection}
-                      onChange={e => {
-                        setExploreGroup(e.target.value);
-                        setExploreQuestion('');
-                      }}
-                    >
-                      <option value="">— Choose group —</option>
-                      {exploreGroups.map(g => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className={styles.pickerGroup}>
-                    <label className={styles.pickerLabel}>Question</label>
-                    <select
-                      className={styles.pickerSelect}
-                      value={exploreQuestion}
-                      disabled={!exploreGroup}
-                      onChange={e => setExploreQuestion(e.target.value)}
-                    >
-                      <option value="">— Choose question —</option>
-                      {exploreQuestions.map(q => (
-                        <option key={q.question} value={q.question}>{q.question}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className={styles.pickerLabel}>Select a question</div>
+                <div className={styles.questionPickerWrap}>
+                  <input
+                    type="text"
+                    className={styles.questionSearch}
+                    placeholder="Type to search questions…"
+                    value={questionSearch}
+                    onChange={e => setQuestionSearch(e.target.value)}
+                  />
+                  <select
+                    className={styles.questionSelect}
+                    size="12"
+                    value={exploreQuestion}
+                    onChange={e => {
+                      setExploreQuestion(e.target.value);
+                      setChartView('combined');
+                    }}
+                  >
+                    {categorizedQuestions.map(group => {
+                      const filtered = group.questions.filter(q =>
+                        !questionSearch ||
+                        q.question.toLowerCase().includes(questionSearch.toLowerCase())
+                      );
+                      if (!filtered.length) return null;
+                      return (
+                        <optgroup
+                          key={group.label}
+                          label={`${group.type === 'core' ? '● CORE' : '○ OPTIONAL'} — ${group.label}`}
+                        >
+                          {filtered.map(q => (
+                            <option key={q.question} value={q.question}>
+                              {q.question}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
                 </div>
               </div>
 
               {!exploreQuestion && (
                 <div className={styles.emptyHint}>
-                  Select a section, group, and question above to view its chart.
+                  Search or scroll the list above to select a question.
+                </div>
+              )}
+
+              {exploreQuestion && responseType === 'numeric' && selectedRows.length > 0 && (
+                <div className={styles.chartToggleRow + ' no-print'}>
+                  {['combined', 'split'].map(v => (
+                    <button
+                      key={v}
+                      className={styles.toggleBtn + (chartView === v ? ' ' + styles.toggleBtnActive : '')}
+                      onClick={() => setChartView(v)}
+                    >
+                      {v === 'combined' ? 'Combined' : 'Side by Side'}
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -529,8 +534,7 @@ export default function App() {
                 </div>
                 {numericQuestions.length === 0 && (
                   <p className={styles.emptyHint} style={{ marginTop: '0.5rem' }}>
-                    No numeric questions with multiple years found in the current filter.
-                    Expand the year range or select more institutions.
+                    No numeric questions with multiple years in the current filter.
                   </p>
                 )}
               </div>
