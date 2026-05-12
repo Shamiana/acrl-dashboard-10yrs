@@ -258,11 +258,16 @@ export function getQuestionIndex(data) {
     }
     map.get(r.question).years.add(r.year);
   });
+  function numKey(str) {
+    const m = str.match(/^(\d+)/);
+    return m ? parseInt(m[1], 10) : Infinity;
+  }
   return [...map.values()]
     .map(q => ({ ...q, years: [...q.years].sort() }))
     .sort((a, b) => {
       if (a.section !== b.section) return a.section.localeCompare(b.section);
-      if (a.questionGroup !== b.questionGroup) return a.questionGroup.localeCompare(b.questionGroup);
+      const na = numKey(a.question), nb = numKey(b.question);
+      if (na !== nb) return na - nb;
       return a.question.localeCompare(b.question);
     });
 }
