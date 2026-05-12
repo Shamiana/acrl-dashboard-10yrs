@@ -5,13 +5,14 @@
   --ink-light: #4a4540;
   --ink-muted: #8a8480;
   --rule: #d8d4cc;
-  --accent: #2c4a6e;
-  --accent-light: #4a7aa8;
-  --accent-muted: #c8d8e8;
+  --accent: #0033A1;
+  --accent-light: #A3C9FF;
+  --accent-muted: #dde6f7;
+  --accent-cyan: #00AFEF;
   --warn: #8b4513;
   --success: #2d5a27;
-  --font-serif: 'Libre Baskerville', Georgia, serif;
-  --font-sans: 'Source Sans 3', 'Source Sans Pro', sans-serif;
+  --font-serif: 'Libre Franklin', sans-serif;
+  --font-sans: 'Libre Franklin', sans-serif;
 }
 
 *, *::before, *::after {

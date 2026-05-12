@@ -6,10 +6,10 @@
 
 /* ── Header ── */
 .header {
-  background: var(--ink);
+  background: var(--accent);
   color: var(--cream);
   padding: 2.5rem 2rem 2rem;
-  border-bottom: 4px solid var(--accent);
+  border-bottom: 4px solid var(--accent-light);
 }
 
 .headerInner {
@@ -62,8 +62,8 @@
 }
 
 .uploadLabel:hover {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
   color: white;
 }
 
@@ -124,7 +124,7 @@
 }
 
 .uploadBtn:hover {
-  background: var(--accent-light);
+  background: var(--accent-cyan);
 }
 
 /* ── Layout ── */
@@ -203,6 +203,7 @@
 .statValue {
   font-family: var(--font-serif);
   font-size: 1.6rem;
+  font-weight: 600;
   color: var(--accent);
   line-height: 1.1;
   margin-bottom: 0.2rem;

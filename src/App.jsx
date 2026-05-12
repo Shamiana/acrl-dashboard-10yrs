@@ -426,7 +426,7 @@ export default function App() {
         <header className={styles.header}>
           <div className={styles.headerInner}>
             <div>
-              <p className={styles.kicker}>CUNY University Libraries</p>
+              <p className={styles.kicker}>CUNY Library Systems Office</p>
               <h1 className={styles.title}>ACRL Benchmark Dashboard</h1>
               <p className={styles.subtitle}>Academic library survey data · All CUNY campuses</p>
             </div>
@@ -437,7 +437,7 @@ export default function App() {
             <p className={styles.uploadIcon}>↑</p>
             <h2 className={styles.uploadHeading}>Upload the master Excel file</h2>
             <p className={styles.uploadHint}>
-              Select <strong>2017-2025_ACRL_master.xlsx</strong>.<br />
+              Select <strong>2026 Survey 2015-2025_ACRL_master.xlsx</strong>.<br />
               The file is read locally — nothing is sent to a server.
             </p>
             <label className={styles.uploadBtn}>
@@ -453,7 +453,7 @@ export default function App() {
           </div>
         </div>
         <footer className={styles.footer}>
-          <p>ACRL Benchmark Dashboard · CUNY University Libraries</p>
+          <p>ACRL Benchmark Dashboard · CUNY Library Systems Office</p>
         </footer>
       </div>
     );
@@ -473,7 +473,7 @@ export default function App() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div>
-            <p className={styles.kicker}>CUNY University Libraries</p>
+            <p className={styles.kicker}>CUNY Library Systems Office</p>
             <h1 className={styles.title}>ACRL Benchmark Dashboard</h1>
             <p className={styles.subtitle}>
               {options.years[0]}–{options.years[options.years.length - 1]} ·{' '}
@@ -818,7 +818,7 @@ export default function App() {
       </div>
 
       <footer className={styles.footer}>
-        <p>ACRL Benchmark Dashboard · CUNY University Libraries</p>
+        <p>ACRL Benchmark Dashboard · CUNY Library Systems Office</p>
       </footer>
     </div>
   );
