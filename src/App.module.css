@@ -498,6 +498,254 @@
   gap: 1.25rem;
 }
 
+/* ── Raw Data filter bar ── */
+.rawFilterBar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.85rem 1rem;
+}
+
+.rawResetBtn {
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  color: var(--ink-muted);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.12s;
+  margin-left: auto;
+}
+
+.rawResetBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Multi-select dropdown ── */
+.mdWrap {
+  position: relative;
+}
+
+.mdTrigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--cream);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 140px;
+  justify-content: space-between;
+  transition: border-color 0.12s;
+}
+
+.mdTrigger:hover,
+.mdTriggerOpen {
+  border-color: var(--accent);
+}
+
+.mdArrow {
+  font-size: 0.65rem;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+.mdPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.mdControls {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.mdCtrlBtn {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  background: var(--cream);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--ink-muted);
+  transition: all 0.1s;
+}
+
+.mdCtrlBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mdList {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0.3rem 0;
+}
+
+.mdItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.mdItem:hover {
+  background: var(--cream);
+}
+
+.mdItemLabel {
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+/* ── Raw Data question accordion ── */
+.rawQCard {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.rawQHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+
+.rawQCount {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  background: var(--cream);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 0.15rem 0.6rem;
+}
+
+.rawQGlobalBtns {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.rawGlobalBtn {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  background: var(--cream);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--ink-muted);
+  transition: all 0.1s;
+}
+
+.rawGlobalBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rawSection {
+  border-bottom: 1px solid var(--rule);
+}
+
+.rawSection:last-child {
+  border-bottom: none;
+}
+
+.rawSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.rawExpandBtn {
+  background: none;
+  border: none;
+  padding: 0 0.2rem;
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.rawSectionLabel {
+  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+}
+
+.rawSectionCount {
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  background: var(--cream);
+  border-radius: 10px;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--rule);
+}
+
+.rawQList {
+  padding: 0.25rem 0 0.5rem 2.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: var(--cream);
+  border-top: 1px solid var(--rule);
+}
+
+.rawQItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.2rem 0.5rem 0.2rem 0;
+  cursor: pointer;
+  font-size: 0.76rem;
+}
+
+.rawQItem:hover .rawQLabel {
+  color: var(--accent);
+}
+
+.rawQLabel {
+  color: var(--ink-light);
+  line-height: 1.4;
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .layout {

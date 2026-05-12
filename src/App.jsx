@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   LineChart, Line, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -12,6 +12,73 @@ import FilterPanel from './components/FilterPanel.jsx';
 import ChartCard from './components/ChartCard.jsx';
 import DataTable from './components/DataTable.jsx';
 import styles from './App.module.css';
+
+function MultiDropdown({ label, options, selected, onChange, renderLabel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const allSelected = selected.length === options.length;
+  const noneSelected = selected.length === 0;
+  const summary = noneSelected
+    ? `No ${label} selected`
+    : allSelected
+    ? `All ${label}`
+    : `${selected.length} of ${options.length} ${label}`;
+
+  return (
+    <div className={styles.mdWrap} ref={ref}>
+      <button
+        type="button"
+        className={styles.mdTrigger + (open ? ' ' + styles.mdTriggerOpen : '')}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span>{summary}</span>
+        <span className={styles.mdArrow}>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className={styles.mdPanel}>
+          <div className={styles.mdControls}>
+            <button type="button" className={styles.mdCtrlBtn} onClick={() => onChange([...options])}>
+              Select All
+            </button>
+            <button type="button" className={styles.mdCtrlBtn} onClick={() => onChange([])}>
+              Deselect All
+            </button>
+          </div>
+          <div className={styles.mdList}>
+            {options.map(opt => {
+              const checked = selected.includes(opt);
+              return (
+                <label key={String(opt)} className={styles.mdItem}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      if (checked) onChange(selected.filter(o => o !== opt));
+                      else onChange([...selected, opt]);
+                    }}
+                  />
+                  <span className={styles.mdItemLabel}>
+                    {renderLabel ? renderLabel(opt) : String(opt)}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const COLORS = [
   '#2c4a6e','#8b4513','#2d5a27','#6b4c8b','#4a7a8a','#8a6b2c',
@@ -34,6 +101,12 @@ export default function App() {
   // Trends tab
   const [trendsQuestion, setTrendsQuestion] = useState('');
 
+  // Raw Data tab — independent filters
+  const [rawYears, setRawYears] = useState([]);
+  const [rawInsts, setRawInsts] = useState([]);
+  const [rawQSet, setRawQSet] = useState(null); // null = all questions selected
+  const [rawExpanded, setRawExpanded] = useState(new Set());
+
   const filteredData = useMemo(
     () => (filters ? applyFilters(data, filters) : data),
     [data, filters]
@@ -41,6 +114,22 @@ export default function App() {
 
   const questionIndex = useMemo(() => getQuestionIndex(filteredData), [filteredData]);
   const categorizedQuestions = useMemo(() => getCategorizedQuestions(questionIndex), [questionIndex]);
+
+  const rawCategorized = useMemo(() => getCategorizedQuestions(getQuestionIndex(data)), [data]);
+
+  const totalRawQCount = useMemo(
+    () => rawCategorized.reduce((n, g) => n + g.questions.length, 0),
+    [rawCategorized]
+  );
+
+  const rawData = useMemo(() => {
+    return data.filter(row => {
+      if (rawYears.length > 0 && !rawYears.includes(row.year)) return false;
+      if (rawInsts.length > 0 && !rawInsts.includes(row.institution)) return false;
+      if (rawQSet !== null && !rawQSet.has(row.question)) return false;
+      return true;
+    });
+  }, [data, rawYears, rawInsts, rawQSet]);
 
   const filterStats = useMemo(() => {
     const insts = new Set(filteredData.map(r => r.institution));
@@ -101,12 +190,54 @@ export default function App() {
       setExploreQuestion('');
       setQuestionSearch('');
       setTrendsQuestion('');
+      setRawYears(opts.years);
+      setRawInsts(opts.institutions);
+      setRawQSet(null);
+      setRawExpanded(new Set());
     } catch {
       alert('Could not read file. Please upload the master Excel file.');
     }
     setUploading(false);
     e.target.value = '';
   };
+
+  const toggleRawSection = useCallback((sectionQuestions) => {
+    const qNames = sectionQuestions.map(q => q.question);
+    setRawQSet(prev => {
+      if (prev === null) {
+        const allQNames = rawCategorized.flatMap(g => g.questions.map(q => q.question));
+        return new Set(allQNames.filter(n => !qNames.includes(n)));
+      }
+      const allIn = qNames.every(n => prev.has(n));
+      if (allIn) {
+        return new Set([...prev].filter(n => !qNames.includes(n)));
+      } else {
+        const next = new Set([...prev, ...qNames]);
+        return next.size >= totalRawQCount ? null : next;
+      }
+    });
+  }, [rawCategorized, totalRawQCount]);
+
+  const toggleRawQuestion = useCallback((qName) => {
+    setRawQSet(prev => {
+      if (prev === null) {
+        const allQNames = rawCategorized.flatMap(g => g.questions.map(q => q.question));
+        return new Set(allQNames.filter(n => n !== qName));
+      }
+      if (prev.has(qName)) {
+        return new Set([...prev].filter(n => n !== qName));
+      } else {
+        const next = new Set([...prev, qName]);
+        return next.size >= totalRawQCount ? null : next;
+      }
+    });
+  }, [rawCategorized, totalRawQCount]);
+
+  const resetRawFilters = useCallback(() => {
+    setRawYears(options.years);
+    setRawInsts(options.institutions);
+    setRawQSet(null);
+  }, [options.years, options.institutions]);
 
   // ── Chart components ──────────────────────────────────────────────────────
 
@@ -589,7 +720,98 @@ export default function App() {
           {/* ── RAW DATA ── */}
           {activeTab === 'data' && (
             <div className={styles.section}>
-              <DataTable data={filteredData} />
+
+              {/* Year + Institution dropdowns */}
+              <div className={styles.rawFilterBar}>
+                <MultiDropdown
+                  label="Years"
+                  options={options.years}
+                  selected={rawYears}
+                  onChange={setRawYears}
+                />
+                <MultiDropdown
+                  label="Institutions"
+                  options={options.institutions}
+                  selected={rawInsts}
+                  onChange={setRawInsts}
+                  renderLabel={shortName}
+                />
+                <button type="button" className={styles.rawResetBtn} onClick={resetRawFilters}>
+                  Reset Filters
+                </button>
+              </div>
+
+              {/* Section / question accordion */}
+              <div className={styles.rawQCard}>
+                <div className={styles.rawQHeader}>
+                  <span className={styles.cardTitle} style={{ marginBottom: 0 }}>Questions</span>
+                  <span className={styles.rawQCount}>
+                    {rawQSet === null ? totalRawQCount : rawQSet.size} of {totalRawQCount} selected
+                  </span>
+                  <div className={styles.rawQGlobalBtns}>
+                    <button type="button" className={styles.rawGlobalBtn} onClick={() => setRawQSet(null)}>All</button>
+                    <button type="button" className={styles.rawGlobalBtn} onClick={() => setRawQSet(new Set())}>None</button>
+                  </div>
+                </div>
+
+                {rawCategorized.map(group => {
+                  const qNames = group.questions.map(q => q.question);
+                  const expanded = rawExpanded.has(group.label);
+                  const checkedCount = rawQSet === null
+                    ? qNames.length
+                    : qNames.filter(n => rawQSet.has(n)).length;
+                  const sectionChecked = checkedCount === qNames.length;
+                  const sectionIndeterminate = checkedCount > 0 && checkedCount < qNames.length;
+
+                  return (
+                    <div key={group.label} className={styles.rawSection}>
+                      <div className={styles.rawSectionHeader}>
+                        <button
+                          type="button"
+                          className={styles.rawExpandBtn}
+                          onClick={() => setRawExpanded(prev => {
+                            const next = new Set(prev);
+                            next.has(group.label) ? next.delete(group.label) : next.add(group.label);
+                            return next;
+                          })}
+                        >
+                          {expanded ? '▾' : '▸'}
+                        </button>
+                        <input
+                          type="checkbox"
+                          checked={sectionChecked}
+                          ref={el => { if (el) el.indeterminate = sectionIndeterminate; }}
+                          onChange={() => toggleRawSection(group.questions)}
+                        />
+                        <span className={styles.rawSectionLabel}>
+                          {group.type === 'core' ? '● ' : '○ '}{group.label}
+                        </span>
+                        <span className={styles.rawSectionCount}>{checkedCount}/{qNames.length}</span>
+                      </div>
+
+                      {expanded && (
+                        <div className={styles.rawQList}>
+                          {group.questions.map(q => {
+                            const checked = rawQSet === null || rawQSet.has(q.question);
+                            return (
+                              <label key={q.question} className={styles.rawQItem}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleRawQuestion(q.question)}
+                                />
+                                <span className={styles.rawQLabel}>{q.question}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <DataTable data={rawData} />
             </div>
           )}
         </main>
