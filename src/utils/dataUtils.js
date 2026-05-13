@@ -213,33 +213,40 @@ export function getCategorizedQuestions(questionIndex) {
     optionalMap.get(label).push(q);
   });
 
-  const groups = [];
+  function minQNum(questions) {
+    const nums = questions.map(q => {
+      const m = q.question.match(/^(\d+)/);
+      return m ? parseInt(m[1], 10) : Infinity;
+    });
+    return Math.min(...nums);
+  }
 
+  const coreGroups = [];
   CORE_SECTIONS.forEach(section => {
     const qs = coreMap.get(section);
-    if (qs && qs.length > 0) groups.push({ type: 'core', label: section, questions: qs });
+    if (qs && qs.length > 0) coreGroups.push({ type: 'core', label: section, questions: qs });
   });
+  coreGroups.sort((a, b) => minQNum(a.questions) - minQNum(b.questions));
 
-  OPTIONAL_SECTION_ORDER.forEach(label => {
-    const qs = optionalMap.get(label);
-    if (qs && qs.length > 0) {
-      groups.push({ type: 'optional', label, questions: qs });
-      optionalMap.delete(label);
-    }
-  });
-
+  const optionalGroups = [];
   optionalMap.forEach((qs, label) => {
-    if (qs.length > 0) groups.push({ type: 'optional', label, questions: qs });
+    if (qs.length > 0) optionalGroups.push({ type: 'optional', label, questions: qs });
+  });
+  optionalGroups.sort((a, b) => {
+    const na = minQNum(a.questions), nb = minQNum(b.questions);
+    if (na === Infinity && nb === Infinity) return a.label.localeCompare(b.label);
+    if (na === Infinity) return 1;
+    if (nb === Infinity) return -1;
+    return na - nb;
   });
 
-  return groups;
+  return [...coreGroups, ...optionalGroups];
 }
 
-// years: [] means all selected; institutions: [] means all selected
 export function applyFilters(data, filters) {
   return data.filter(row => {
-    if (filters.years.length > 0 && !filters.years.includes(row.year)) return false;
-    if (filters.institutions.length > 0 && !filters.institutions.includes(row.institution)) return false;
+    if (!filters.years.includes(row.year)) return false;
+    if (!filters.institutions.includes(row.institution)) return false;
     return true;
   });
 }

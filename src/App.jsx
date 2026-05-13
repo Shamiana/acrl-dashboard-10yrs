@@ -8,7 +8,6 @@ import {
   getQuestionIndex, getCategorizedQuestions,
   detectResponseType, parseNumeric, shortName,
 } from './utils/dataUtils.js';
-import FilterPanel from './components/FilterPanel.jsx';
 import ChartCard from './components/ChartCard.jsx';
 import DataTable from './components/DataTable.jsx';
 import styles from './App.module.css';
@@ -80,6 +79,8 @@ function MultiDropdown({ label, options, selected, onChange, renderLabel }) {
   );
 }
 
+const LAST_UPDATED = 'May 2026';
+
 const COLORS = [
   '#2c4a6e','#8b4513','#2d5a27','#6b4c8b','#4a7a8a','#8a6b2c',
   '#c05a2e','#3a6b5a','#5a3a6b','#6b7a2c','#2e5a8a','#8a2e5a',
@@ -101,10 +102,8 @@ export default function App() {
   // Trends tab
   const [trendsQuestion, setTrendsQuestion] = useState('');
 
-  // Raw Data tab — independent filters
-  const [rawYears, setRawYears] = useState([]);
-  const [rawInsts, setRawInsts] = useState([]);
-  const [rawQSet, setRawQSet] = useState(null); // null = all questions selected
+  // Raw Data tab — question filter (null = all questions)
+  const [rawQSet, setRawQSet] = useState(null);
   const [rawExpanded, setRawExpanded] = useState(new Set());
 
   const filteredData = useMemo(
@@ -123,13 +122,9 @@ export default function App() {
   );
 
   const rawData = useMemo(() => {
-    return data.filter(row => {
-      if (rawYears.length > 0 && !rawYears.includes(row.year)) return false;
-      if (rawInsts.length > 0 && !rawInsts.includes(row.institution)) return false;
-      if (rawQSet !== null && !rawQSet.has(row.question)) return false;
-      return true;
-    });
-  }, [data, rawYears, rawInsts, rawQSet]);
+    if (rawQSet === null) return filteredData;
+    return filteredData.filter(row => rawQSet.has(row.question));
+  }, [filteredData, rawQSet]);
 
   const filterStats = useMemo(() => {
     const insts = new Set(filteredData.map(r => r.institution));
@@ -171,11 +166,11 @@ export default function App() {
 
   const handleFilterChange = useCallback((key, value) => {
     if (key === 'reset') {
-      setFilters({ years: [], institutions: [] });
+      setFilters({ years: options.years, institutions: options.institutions });
     } else {
       setFilters(prev => ({ ...prev, [key]: value }));
     }
-  }, []);
+  }, [options]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -186,12 +181,10 @@ export default function App() {
       const opts = deriveFilters(rows);
       setData(rows);
       setOptions(opts);
-      setFilters({ years: [], institutions: [] });
+      setFilters({ years: opts.years, institutions: opts.institutions });
       setExploreQuestion('');
       setQuestionSearch('');
       setTrendsQuestion('');
-      setRawYears(opts.years);
-      setRawInsts(opts.institutions);
       setRawQSet(null);
       setRawExpanded(new Set());
     } catch {
@@ -233,11 +226,6 @@ export default function App() {
     });
   }, [rawCategorized, totalRawQCount]);
 
-  const resetRawFilters = useCallback(() => {
-    setRawYears(options.years);
-    setRawInsts(options.institutions);
-    setRawQSet(null);
-  }, [options.years, options.institutions]);
 
   // ── Chart components ──────────────────────────────────────────────────────
 
@@ -435,11 +423,12 @@ export default function App() {
         <div className={styles.uploadPrompt}>
           <div className={styles.uploadCard}>
             <p className={styles.uploadIcon}>↑</p>
-            <h2 className={styles.uploadHeading}>Upload the master Excel file</h2>
+            <h2 className={styles.uploadHeading}>Upload master data file</h2>
             <p className={styles.uploadHint}>
-              Select <strong>2026 Survey 2015-2025_ACRL_master.xlsx</strong>.<br />
+              Select the ACRL benchmark master Excel file.<br />
               The file is read locally — nothing is sent to a server.
             </p>
+            <p className={styles.uploadLastUpdated}>Last updated: {LAST_UPDATED}</p>
             <label className={styles.uploadBtn}>
               <input
                 type="file"
@@ -453,7 +442,7 @@ export default function App() {
           </div>
         </div>
         <footer className={styles.footer}>
-          <p>ACRL Benchmark Dashboard · CUNY Library Systems Office</p>
+          <p>ACRL Benchmark Dashboard · CUNY Library Systems Office · Last updated: {LAST_UPDATED}</p>
         </footer>
       </div>
     );
@@ -465,8 +454,6 @@ export default function App() {
     { id: 'trends',   label: 'Trends' },
     { id: 'data',     label: 'Raw Data' },
   ];
-
-  const selectedYears = filters.years.length > 0 ? filters.years : options.years;
 
   return (
     <div className={styles.app}>
@@ -494,12 +481,22 @@ export default function App() {
       </header>
 
       <div className={styles.layout}>
-        <FilterPanel
-          filters={filters}
-          options={options}
-          onChange={handleFilterChange}
-          stats={filterStats}
-        />
+        <div className={styles.globalFilterBar + ' no-print'}>
+          <div className={styles.fbGroup}>
+            <span className={styles.fbLabel}>Years</span>
+            <button type="button" className={styles.fbANBtn} onClick={() => handleFilterChange('years', options.years)}>All</button>
+            <button type="button" className={styles.fbANBtn} onClick={() => handleFilterChange('years', [])}>None</button>
+            <MultiDropdown label="Years" options={options.years} selected={filters.years} onChange={v => handleFilterChange('years', v)} />
+          </div>
+          <div className={styles.fbGroup}>
+            <span className={styles.fbLabel}>Institutions</span>
+            <button type="button" className={styles.fbANBtn} onClick={() => handleFilterChange('institutions', options.institutions)}>All</button>
+            <button type="button" className={styles.fbANBtn} onClick={() => handleFilterChange('institutions', [])}>None</button>
+            <MultiDropdown label="Institutions" options={options.institutions} selected={filters.institutions} onChange={v => handleFilterChange('institutions', v)} renderLabel={shortName} />
+          </div>
+          <span className={styles.fbStats}>{filterStats.institutions} inst · {filterStats.years} yr</span>
+          <button type="button" className={styles.fbResetBtn} onClick={() => handleFilterChange('reset', null)}>Reset All</button>
+        </div>
 
         <main className={styles.main}>
           <nav className={styles.tabs + ' no-print'}>
@@ -720,26 +717,6 @@ export default function App() {
           {/* ── RAW DATA ── */}
           {activeTab === 'data' && (
             <div className={styles.section}>
-
-              {/* Year + Institution dropdowns */}
-              <div className={styles.rawFilterBar}>
-                <MultiDropdown
-                  label="Years"
-                  options={options.years}
-                  selected={rawYears}
-                  onChange={setRawYears}
-                />
-                <MultiDropdown
-                  label="Institutions"
-                  options={options.institutions}
-                  selected={rawInsts}
-                  onChange={setRawInsts}
-                  renderLabel={shortName}
-                />
-                <button type="button" className={styles.rawResetBtn} onClick={resetRawFilters}>
-                  Reset Filters
-                </button>
-              </div>
 
               {/* Section / question accordion */}
               <div className={styles.rawQCard}>
