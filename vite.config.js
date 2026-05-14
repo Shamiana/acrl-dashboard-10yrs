@@ -6,5 +6,5 @@ export default defineConfig({
   // IMPORTANT: Change this to your GitHub repo name
   // e.g. if your repo is https://github.com/yourname/survey-dashboard
   // set base: '/survey-dashboard/'
-  base: '/',
+  base: '/acrl-dashboard-10yrs/',
 })
