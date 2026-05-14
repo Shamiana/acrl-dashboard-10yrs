@@ -627,6 +627,20 @@ export default function App() {
                 </div>
               )}
 
+              {exploreQuestion && selectedRows.length > 0 && responseType !== 'empty' && (
+                <div className={styles.chartToggleRow + ' no-print'}>
+                  <span className={styles.fbLabel} style={{ alignSelf: 'center' }}>Download question data:</span>
+                  <button
+                    className={styles.toggleBtn}
+                    onClick={() => exportCSV(selectedRows, `${exploreQuestion.replace(/\s+/g, '_').slice(0, 60)}.csv`)}
+                  >↓ CSV</button>
+                  <button
+                    className={styles.toggleBtn}
+                    onClick={() => exportExcel(selectedRows, `${exploreQuestion.replace(/\s+/g, '_').slice(0, 60)}.xlsx`)}
+                  >↓ Excel</button>
+                </div>
+              )}
+
               {exploreQuestion && responseType === 'numeric' && <NumericChart rows={selectedRows} />}
               {exploreQuestion && responseType === 'categorical' && <CategoricalChart rows={selectedRows} />}
               {exploreQuestion && responseType === 'multiselect' && <MultiselectChart rows={selectedRows} />}
