@@ -10,6 +10,7 @@ import {
 } from './utils/dataUtils.js';
 import ChartCard from './components/ChartCard.jsx';
 import DataTable from './components/DataTable.jsx';
+import { exportCSV, exportExcel } from './utils/exportUtils.js';
 import styles from './App.module.css';
 
 function MultiDropdown({ label, options, selected, onChange, renderLabel }) {
